@@ -1,0 +1,11 @@
+# Fetched data and build intermediates. All of it is reproducible from the pipeline, and the
+# detail checkpoint alone is 20 MB of scraped listing history.
+*.pkl
+map_payload.json
+levels.json
+wa_zips.json
+zcta_county.txt
+water_*.zip
+water_raw.json
+__pycache__/
+.venv/
