@@ -742,6 +742,7 @@ map.on("zoomend moveend", () => labelLayer());
 /* ---- drill-down: a ZIP opens into its individual sales ---- */
 let sales = null, openZip = null;
 const money = v => "$" + Number(v).toLocaleString();
+const listingUrl = p => p && p.u ? DATA.href_prefix + p.u : null;
 
 function saleTip(p){
   const t = [];
@@ -778,7 +779,7 @@ function saleTip(p){
       t.push(`<tr><td colspan="3">+ ${p.nev - p.ev.length} earlier event(s)</td></tr>`);
     t.push("</table></div>");
   }
-  t.push(`<div class="ex"><a href="${DATA.href_prefix}${p.u}" target="_blank" rel="noopener">` +
+  t.push(`<div class="ex"><a href="${listingUrl(p)}" target="_blank" rel="noopener">` +
          `View on realtor.com \u2192</a></div>`);
   return `<div class="tip sale">${t.join("")}</div>`;
 }
@@ -825,7 +826,8 @@ function addSales(zipCode){
          anchored near the top edge opened clipped -- losing the address and the price, the two
          things it exists to show -- and panning it into view fought Leaflet's positioning. */
       /* A dot behaves like its row: hover for the detail panel, click to open the listing. */
-      .on("click", () => { if (p.u) window.open(p.u, "_blank", "noopener"); });
+      .on("click", () => { const u = listingUrl(p);
+                           if (u) window.open(u, "_blank", "noopener"); });
     saleMarks[p.i] = m;
     return m;
   })).addTo(map);
@@ -898,7 +900,8 @@ function homeList(){
       if (m) m.setStyle({weight:2.5, color:isDark() ? "#1a1a19" : "#fcfcfb"});
       hideTip();
     };
-    row.onclick = () => { if (p && p.u) window.open(p.u, "_blank", "noopener"); };
+    row.onclick = () => { const u = listingUrl(p);
+                          if (u) window.open(u, "_blank", "noopener"); };
   });
 }
 
