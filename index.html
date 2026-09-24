@@ -319,6 +319,7 @@ table.data tr:hover td{background:var(--plane)}
     <button data-v="days" aria-pressed="false">Days to&nbsp;pending</button>
     <button data-v="cuts" aria-pressed="false">Price cuts</button>
     <button data-v="depth" aria-pressed="false">Cut depth</button>
+    <button data-v="price" aria-pressed="false">Median price</button>
     <button data-v="ppsf" aria-pressed="false">$ / sqft</button>
   </div>
   <div class="spacer"></div>
@@ -384,6 +385,8 @@ const fmt = {
   fast_over_pct: v => v == null ? "n/a" : v.toFixed(0) + "%",
   even_dev:      v => v == null ? "n/a" : v.toFixed(0),
   cut_size_median: v => v == null ? "n/a" : v.toFixed(1) + "%",
+  median_price:  v => v == null ? "n/a" : v >= 1e6
+                   ? "$" + (v / 1e6).toFixed(2) + "M" : "$" + Math.round(v / 1000) + "k",
   median_ppsf:   v => v == null ? "n/a" : "$" + v.toLocaleString(),
 };
 const META = {
@@ -402,6 +405,8 @@ const META = {
                   lo:"none", hi:"most"},
   median_days:   {label:"Median days from listing to contract", diverging:false,
                   lo:"fast", hi:"slow", invert:true},
+  median_price:  {label:"Median sold price", diverging:false,
+                  arm:"cool", lo:"lower", hi:"higher"},
   median_ppsf:   {label:"Median price per square foot", diverging:false,
                   lo:"lower", hi:"higher"},
   /* One hue, one share. The stacked bars beside the map carry the other two and the three
@@ -431,6 +436,7 @@ const VIEWS = [
   {id:"days",   metric:"median_days",     chart:rankedBars},
   {id:"cuts",   metric:"cuts_mean",       chart:cutsList},
   {id:"depth", base:"cutters_n", baseNoun:"cutters",  metric:"cut_size_median", chart:cutDepth},
+  {id:"price",  metric:"median_price",    chart:rankedBars},
   {id:"ppsf",   metric:"median_ppsf",     chart:rankedBars},
 ];
 let view = VIEWS[0];
@@ -816,6 +822,8 @@ const HOME_COL = {
   cuts:   {title:"Price cuts taken", get:p => p.nc, fmt:v => String(v)},
   depth:  {title:"How far the ask fell", get:p => p.cd == null ? null : p.cd*100,
            fmt:v => v.toFixed(1) + "%", low:true},
+  price:  {title:"Sold price", get:p => p.sp,
+           fmt:v => "$" + Math.round(v).toLocaleString()},
   ppsf:   {title:"Price per square foot", get:p => p.sq ? p.sp/p.sq : null,
            fmt:v => "$" + Math.round(v).toLocaleString()},
 };
@@ -913,6 +921,10 @@ const LEAD = {
      base:"cutters_n", key:"among the homes that cut"},
     {label:"Shallowest published cuts", field:"cut_size_median", dir:-1,
      base:"cutters_n", key:"among the homes that cut"},
+  ],
+  median_price: [
+    {label:"Most affordable", field:"median_price", dir: 1},
+    {label:"Most expensive",  field:"median_price", dir:-1},
   ],
   median_ppsf: [
     {label:"Cheapest per square foot", field:"median_ppsf", dir: 1},
@@ -1328,6 +1340,12 @@ const HOWTO = {
     "conceded at the table. The two halves are kept separate because roughly half of all " +
     "discount is never published as a cut at all, and a cuts-only view reports those homes " +
     "as zero.",
+  price: "Median sold price \u2014 the middle sale, not an average, so one mansion cannot " +
+    "move it. Darker is dearer. This tab answers what a home here costs; $/sqft answers what " +
+    "space here costs. A unit can be cheap per foot and expensive per house if the houses are " +
+    "large, and the two disagreeing is usually a difference in what got built rather than in " +
+    "what buyers will pay. Narrowing the price band above makes this tab converge by " +
+    "construction, so read the two together.",
   ppsf: "Median sold price per square foot. Darker is dearer. Read it against the median " +
     "price in the table — a low figure can mean large houses rather than cheap ones. " +
     "This is the tab most distorted by mixing property types: a condo's floor area excludes " +
@@ -1435,6 +1453,15 @@ function summarise(){
         `<b>${med(cut.map(p => p.ng * 100)).toFixed(2)}%</b> at the table. A separate ` +
         `<b>${silent.length}</b> never cut and still sold under the ask.` +
         (e ? ` Deepest ${named(e[0], e[0].cut_size_median.toFixed(1) + "%")}.` : "");
+    }
+    case "price": {
+      const v = withAsk.map(p => p.sp);
+      const e = level === 2 ? null : ends("median_price", true);
+      return `Median <b>${fmt.median_price(med(v))}</b> ${where}, over ` +
+        `${n.toLocaleString()} sales, spanning ${fmt.median_price(Math.min(...v))} to ` +
+        `${fmt.median_price(Math.max(...v))}.` +
+        (e ? ` Most affordable ${named(e[0], fmt.median_price(e[0].median_price))}, ` +
+             `dearest ${named(e[1], fmt.median_price(e[1].median_price))}.` : "");
     }
     case "ppsf": {
       const v = P.filter(p => p.sq).map(p => p.sp / p.sq);
