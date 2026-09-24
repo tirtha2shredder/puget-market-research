@@ -1793,6 +1793,8 @@ html = (HTML
         .replace("__PAYLOAD__", json.dumps(payload, separators=(",", ":")))
         .replace("NEUTRAL_L", payload["ramp"]["light"]["neutral"])
         .replace("NEUTRAL_D", payload["ramp"]["dark"]["neutral"]))
-open("closed_sales_map.html", "w").write(html)
+# index.html so GitHub Pages serves it at the bare repo URL with no redirect.
+OUT = "index.html"
+open(OUT, "w").write(html)
 import os
-print(f"wrote closed_sales_map.html ({os.path.getsize('closed_sales_map.html')/1024:.0f} kB)")
+print(f"wrote {OUT} ({os.path.getsize(OUT)/1024:.0f} kB)")
