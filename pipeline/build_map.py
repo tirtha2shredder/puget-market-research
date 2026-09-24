@@ -24,7 +24,7 @@ def price_steps(pl):
 HTML = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Closed home sales — 22 Aug to 21 Sep 2026</title>
+<title>Greater Seattle Area Home Sales Analysis</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 :root{
@@ -132,7 +132,7 @@ h1{font-size:21px;font-weight:650;margin:0 0 4px;letter-spacing:-0.01em}
 .seg.tiny button + button{border-left:1px solid var(--border)}
 .seg.tiny button[aria-pressed="true"]{background:var(--series-link);color:#fff;
   font-weight:600}
-.pricebar{padding:10px 14px 8px;margin-bottom:14px;font-size:12.5px;
+.pricebar{padding:10px 14px 14px;margin-bottom:16px;font-size:12.5px;
   color:var(--text-secondary)}
 .pricebar .phead{display:flex;align-items:center;gap:10px;margin-bottom:6px}
 .pricebar .pttl{font-weight:600;flex:0 0 auto}
@@ -295,28 +295,12 @@ table.data tr:hover td{background:var(--plane)}
   font-weight:600}
 </style></head>
 <body><div class="viz-root">
-<h1>Closed home sales — King &amp; Snohomish</h1>
+<h1>Greater Seattle Area Home Sales Analysis</h1>
 <p class="sub">__NREG__ regions &middot; __NZIP__ ZIP codes &middot;
  __NAREA__ market areas &middot; houses, townhomes and condos available &middot;
  every sale with a recorded asking price &middot; the ask is the opening of the campaign that
  produced the sale, so a home relisted after months off market is measured from its own
  campaign &middot; source: realtor.com</p>
-
-<div class="controls">
-  <div class="seg" id="tabSeg" role="group" aria-label="Metric">
-    <button data-v="vs_ask" aria-pressed="true">Sold vs&nbsp;ask</button>
-    <button data-v="split" aria-pressed="false">Above / at / below</button>
-    <button data-v="fast" aria-pressed="false">Above / at / below &mdash;
-      fast&nbsp;sales</button>
-    <button data-v="days" aria-pressed="false">Days to&nbsp;pending</button>
-    <button data-v="cuts" aria-pressed="false">Price cuts</button>
-    <button data-v="depth" aria-pressed="false">Cut depth</button>
-    <button data-v="ppsf" aria-pressed="false">$ / sqft</button>
-  </div>
-  <div class="spacer"></div>
-  <button class="ghost" id="toggleTable" aria-pressed="false">Show table</button>
-  <button class="ghost" id="toggleTheme">Dark</button>
-</div>
 
 <div class="card scopebar">
   <span class="pttl">Property type</span>
@@ -347,6 +331,22 @@ table.data tr:hover td{background:var(--plane)}
     <input type="range" id="pHi" min="0" step="1" aria-label="Highest price">
   </div>
   <div class="pticks" id="pTicks"></div>
+</div>
+
+<div class="controls">
+  <div class="seg" id="tabSeg" role="group" aria-label="Metric">
+    <button data-v="vs_ask" aria-pressed="true">Sold vs&nbsp;ask</button>
+    <button data-v="split" aria-pressed="false">Above / at / below</button>
+    <button data-v="fast" aria-pressed="false">Above / at / below &mdash;
+      fast&nbsp;sales</button>
+    <button data-v="days" aria-pressed="false">Days to&nbsp;pending</button>
+    <button data-v="cuts" aria-pressed="false">Price cuts</button>
+    <button data-v="depth" aria-pressed="false">Cut depth</button>
+    <button data-v="ppsf" aria-pressed="false">$ / sqft</button>
+  </div>
+  <div class="spacer"></div>
+  <button class="ghost" id="toggleTable" aria-pressed="false">Show table</button>
+  <button class="ghost" id="toggleTheme">Dark</button>
 </div>
 
 <div id="drillBar" class="card drill hidden">
