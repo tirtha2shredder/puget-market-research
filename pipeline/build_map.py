@@ -24,7 +24,7 @@ def price_steps(pl):
 HTML = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Closed sales by market area — 22 Aug to 21 Sep 2026</title>
+<title>Closed home sales — 22 Aug to 21 Sep 2026</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 :root{
@@ -120,6 +120,18 @@ h1{font-size:21px;font-weight:650;margin:0 0 4px;letter-spacing:-0.01em}
    point: it shows where the sales actually are, so a band is chosen against the shape of the
    market rather than by guessing at numbers. Both inputs are stacked over the same track with
    pointer-events off except on the thumbs, which is what lets either one be grabbed. */
+.scopebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 14px;
+  margin-bottom:14px;font-size:12.5px;color:var(--text-secondary)}
+.scopebar .pttl{font-weight:600;flex:0 0 auto}
+.scopebar .sout{margin-left:auto;color:var(--muted);text-align:right}
+.scopebar .sout b{color:var(--text-primary)}
+.seg.tiny{display:inline-flex;gap:0;border:1px solid var(--border);border-radius:7px;
+  overflow:hidden}
+.seg.tiny button{padding:4px 9px;font-size:12px;border:0;border-radius:0;
+  background:var(--surface-1);color:var(--text-secondary);cursor:pointer}
+.seg.tiny button + button{border-left:1px solid var(--border)}
+.seg.tiny button[aria-pressed="true"]{background:var(--series-link);color:#fff;
+  font-weight:600}
 .pricebar{padding:10px 14px 8px;margin-bottom:14px;font-size:12.5px;
   color:var(--text-secondary)}
 .pricebar .phead{display:flex;align-items:center;gap:10px;margin-bottom:6px}
@@ -283,13 +295,12 @@ table.data tr:hover td{background:var(--plane)}
   font-weight:600}
 </style></head>
 <body><div class="viz-root">
-<h1>Closed single-family sales — King &amp; Snohomish</h1>
+<h1>Closed home sales — King &amp; Snohomish</h1>
 <p class="sub">__NREG__ regions &middot; __NZIP__ ZIP codes &middot;
- __NAREA__ market areas &middot;
- 22 August – 21 September 2026 &middot; __NSALE__ closed single-family sales &middot;
- every sale with a recorded asking price, no time filter &middot; the ask is the opening of
- the campaign that produced the sale, so a home relisted after months off market is measured
- from its own campaign &middot; source: realtor.com</p>
+ __NAREA__ market areas &middot; houses, townhomes and condos &middot;
+ every sale with a recorded asking price &middot; the ask is the opening of the campaign that
+ produced the sale, so a home relisted after months off market is measured from its own
+ campaign &middot; source: realtor.com</p>
 
 <div class="controls">
   <div class="seg" role="group" aria-label="Metric">
@@ -305,6 +316,22 @@ table.data tr:hover td{background:var(--plane)}
   <div class="spacer"></div>
   <button class="ghost" id="toggleTable" aria-pressed="false">Show table</button>
   <button class="ghost" id="toggleTheme">Dark</button>
+</div>
+
+<div class="card scopebar">
+  <span class="pttl">Property type</span>
+  <div class="seg tiny" id="ptSeg">
+    <button data-pt="s" aria-pressed="true">Houses</button>
+    <button data-pt="t" aria-pressed="true">Townhomes</button>
+    <button data-pt="c" aria-pressed="true">Condos</button>
+  </div>
+  <span class="pttl">Sold within</span>
+  <div class="seg tiny" id="winSeg">
+    <button data-win="1" aria-pressed="true">1 month</button>
+    <button data-win="3" aria-pressed="false">3 months</button>
+    <button data-win="6" aria-pressed="false">6 months</button>
+  </div>
+  <span class="sout" id="sOut"></span>
 </div>
 
 <div class="card pricebar">
@@ -454,10 +481,29 @@ let compSort = "above";
    filter wide open -- all 86 ZIPs, 37 areas and 12 regions match field for field. */
 const STEPS = __STEPS__;                 /* index 0 and last mean "unbounded" */
 const PRICE = {lo: null, hi: null};
+/* Houses, townhomes and condos; all three on by default. Multi-select because they are three
+   markets a buyer may weigh together, unlike the window, where 1, 3 and 6 months are three
+   answers to the same question and only one can be on screen. */
+const SCOPE = {types: new Set(["s", "t", "c"]), months: 1};
+const PT_LABEL = {s: "houses", t: "townhomes", c: "condos"};
+const WINDOW_DAYS = {1: 30, 3: 91, 6: 999};      /* 6 is the whole fetched span */
+const ZMETA = DATA.meta.zip;
+const WIN_END = DATA.window[1];
+/* Dates travel as offsets from DATA.epoch; put them back only where one is displayed. */
+const EPOCH_MS = Date.parse(DATA.epoch + "T00:00:00Z");
+const dayStr = off => new Date(EPOCH_MS + off * 86400000).toISOString().slice(0, 10);
+const cutoff = () => WIN_END - WINDOW_DAYS[SCOPE.months];
+
+function inScope(p){
+  return SCOPE.types.has(p.pt) && p.sd > cutoff();
+}
 function inBand(p){
   return (PRICE.lo == null || p.sp >= PRICE.lo) && (PRICE.hi == null || p.sp <= PRICE.hi);
 }
-function activeSales(){ return DATA.points.filter(inBand); }
+/* Type and window only: what the price histogram must draw, since a histogram of the band
+   would show nothing but the band. */
+function scopeSales(){ return DATA.points.filter(inScope); }
+function activeSales(){ return DATA.points.filter(p => inScope(p) && inBand(p)); }
 
 const _med = a => { const v = a.filter(x => x != null).sort((x, y) => x - y);
   if (!v.length) return null;
@@ -525,7 +571,9 @@ function recompute(){
   for (const [kind, field] of [["region", "rg"], ["zip", "z"], ["area", "ar"]]){
     const by = new Map();
     for (const p of sales){
-      const k = p[field];
+      const m = ZMETA[p.z];
+      if (!m) continue;
+      const k = field === "z" ? p.z : field === "ar" ? m.area : m.region;
       if (k == null) continue;
       if (!by.has(k)) by.set(k, []);
       by.get(k).push(p);
@@ -717,13 +765,14 @@ function saleTip(p){
     const MAX = 6;
     const shown = p.ev.slice(0, MAX);
     t.push('<div class="ex"><b>Listing history</b><table>');
-    for (const e of shown) t.push(`<tr><td>${e.d}</td><td>${e.e}</td>` +
-      `<td class="v">${e.p ? money(e.p) : ""}</td></tr>`);
-    if (p.ev.length > MAX)
-      t.push(`<tr><td colspan="3">+ ${p.ev.length - MAX} earlier event(s)</td></tr>`);
+    for (const e of shown) t.push(`<tr><td>${dayStr(e[0])}</td>` +
+      `<td>${DATA.ev_names[e[1]] || "?"}</td>` +
+      `<td class="v">${e[2] ? money(e[2]) : ""}</td></tr>`);
+    if ((p.nev || 0) > p.ev.length)
+      t.push(`<tr><td colspan="3">+ ${p.nev - p.ev.length} earlier event(s)</td></tr>`);
     t.push("</table></div>");
   }
-  t.push(`<div class="ex"><a href="${p.u}" target="_blank" rel="noopener">` +
+  t.push(`<div class="ex"><a href="${DATA.href_prefix}${p.u}" target="_blank" rel="noopener">` +
          `View on realtor.com \u2192</a></div>`);
   return `<div class="tip sale">${t.join("")}</div>`;
 }
@@ -1126,7 +1175,7 @@ function draw(){
   if (target.isValid())
     map.fitBounds(target, {padding: level === 2 ? [60, 60] : [18, 18]});
   document.getElementById("chartCard").classList.add("cap");
-  legend(); table(); crumbs(); leaders(); priceOut();
+  legend(); table(); crumbs(); leaders(); priceOut(); scopeOut();
   if (level === 2) homeList(); else view.chart();
 }
 
@@ -1282,7 +1331,9 @@ const HOWTO = {
   vs_ask: "Bar length and fill are the median home's gap from the opening ask of its own " +
     "campaign. Grey is parity, blue is under, red is over. A median says nothing about " +
     "spread — two units with the same figure can be calm or violently mixed — so " +
-    "step in when a number matters.",
+    "step in when a number matters. Widening the window changes the figure for two reasons " +
+    "at once: more sales, and a different time of year. Spring and late summer are not the " +
+    "same market, so a 1-month and a 6-month median differ partly by season.",
   split: "Each bar splits a unit's sales three ways: above the ask, on it, below it. They sum " +
     "to 100, so the shape carries as much as the total: the same balance can be a " +
     "price-to-sell market where most land exactly on the ask, or a negotiated one where they " +
@@ -1301,7 +1352,10 @@ const HOWTO = {
     "discount is never published as a cut at all, and a cuts-only view reports those homes " +
     "as zero.",
   ppsf: "Median sold price per square foot. Darker is dearer. Read it against the median " +
-    "price in the table — a low figure can mean large houses rather than cheap ones.",
+    "price in the table — a low figure can mean large houses rather than cheap ones. " +
+    "This is the tab most distorted by mixing property types: a condo's floor area excludes " +
+    "everything shared, so its $/sqft is not the same measurement as a house's. With more " +
+    "than one type selected, read it as a price level rather than a comparison.",
 };
 
 /* ---- the computed half ---- */
@@ -1316,7 +1370,7 @@ const sh = v => Math.round(v) + "%";
 function scopePoints(){
   const s = activeSales();
   if (level === 2) return s.filter(p => p.z === openZipCode);
-  if (level === 1) return s.filter(p => p.rg === openRegion);
+  if (level === 1) return s.filter(p => (ZMETA[p.z] || {}).region === openRegion);
   return s;
 }
 const unitName = r => r.label || r.zip;
@@ -1590,9 +1644,9 @@ const pMoney = v => v >= 1_000_000
 let HIST = [];
 function priceHist(){
   const last = STEPS.length - 2;
+  const inS = scopeSales();
   HIST = STEPS.slice(0, -1).map((v, i) =>
-    DATA.points.filter(p => p.sp >= v
-      && (i === last || p.sp < STEPS[i + 1])).length);
+    inS.filter(p => p.sp >= v && (i === last || p.sp < STEPS[i + 1])).length);
   const top = Math.max(...HIST) || 1;
   document.getElementById("pHist").innerHTML = HIST.map((c, i) =>
     `<i data-b="${i}" style="height:${Math.max(Math.sqrt(c / top) * 100, c ? 6 : 1)}%"
@@ -1607,6 +1661,46 @@ function priceHist(){
       return `<span style="left:${i / span * 100}%">${label}</span>`;
     }).join("");
 }
+/* ---- property type and window ---- */
+function scopeWire(){
+  const paint = () => {
+    document.querySelectorAll("#ptSeg button").forEach(b =>
+      b.setAttribute("aria-pressed", SCOPE.types.has(b.dataset.pt)));
+    document.querySelectorAll("#winSeg button").forEach(b =>
+      b.setAttribute("aria-pressed", +b.dataset.win === SCOPE.months));
+  };
+  document.querySelectorAll("#ptSeg button").forEach(b => b.onclick = () => {
+    const t = b.dataset.pt;
+    /* Never let the last type be switched off: an empty scope has no answer to give, and the
+       whole report would go blank with no indication why. */
+    if (SCOPE.types.has(t) && SCOPE.types.size > 1) SCOPE.types.delete(t);
+    else SCOPE.types.add(t);
+    paint(); rescope();
+  });
+  document.querySelectorAll("#winSeg button").forEach(b => b.onclick = () => {
+    SCOPE.months = +b.dataset.win;
+    paint(); rescope();
+  });
+  paint();
+}
+/* The price distribution differs by type and window -- condos cluster far below houses -- so
+   the histogram is rebuilt whenever the scope changes, and the band is clamped back inside
+   whatever range still has sales. */
+function rescope(){ priceHist(); draw(); }
+
+function scopeOut(){
+  const inS = scopeSales();
+  const withAsk = inS.filter(p => p.oa != null).length;
+  const mix = {};
+  for (const p of inS) mix[p.pt] = (mix[p.pt] || 0) + 1;
+  const parts = ["s", "t", "c"].filter(t => SCOPE.types.has(t))
+    .map(t => `${(mix[t] || 0).toLocaleString()} ${PT_LABEL[t]}`);
+  const from = dayStr(Math.max(cutoff() + 1, DATA.window[0]));
+  document.getElementById("sOut").innerHTML =
+    `<b>${withAsk.toLocaleString()}</b> measurable sales \u00b7 ${parts.join(", ")} ` +
+    `\u00b7 ${from} to ${dayStr(WIN_END)}`;
+}
+
 function priceWire(){
   const lo = document.getElementById("pLo"), hi = document.getElementById("pHi");
   lo.max = hi.max = STEPS.length - 1;
@@ -1685,7 +1779,7 @@ function priceOut(){
 }
 document.getElementById("backBtn").onclick = undrill;
 document.addEventListener("keydown", e => { if (e.key === "Escape") undrill(); });
-priceWire(); addTiles(); draw();
+scopeWire(); priceWire(); addTiles(); draw();
 document.getElementById("toggleTheme").textContent = isDark() ? "Light" : "Dark";
 </script></div></body></html>
 """
@@ -1694,8 +1788,7 @@ html = (HTML
         .replace("__NREG__", str(len(payload["meta"]["region"])))
         .replace("__NZIP__", str(len(payload["meta"]["zip"])))
         .replace("__NAREA__", str(len(payload["meta"]["area"])))
-        .replace("__NSALE__",
-                 f'{sum(1 for p in payload["points"] if p.get("oa")):,}')
+
         .replace("__STEPS__", json.dumps(price_steps(payload)))
         .replace("__PAYLOAD__", json.dumps(payload, separators=(",", ":")))
         .replace("NEUTRAL_L", payload["ramp"]["light"]["neutral"])

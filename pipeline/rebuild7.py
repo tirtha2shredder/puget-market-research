@@ -20,7 +20,7 @@ Two things this adds over the single-level version:
 import json
 import pickle
 import sys
-from datetime import datetime
+from datetime import date, datetime
 
 import pandas as pd
 
@@ -30,7 +30,30 @@ from areas import (AREA_TO_REGION, ZIP_TO_AREA, ZIP_TO_REGION, check,  # noqa: E
 from campaign import campaign  # noqa: E402
 from ziplabels import label_for  # noqa: E402
 
-DETAILS = "/tmp/rdc_wide_details.pkl"
+DETAILS = "/tmp/v2_details.pkl"
+
+# Six months of all three residential types. One and three months are cut from this in the
+# browser, so the window selector costs no extra fetching.
+WINDOW_FROM, WINDOW_TO = date(2026, 3, 22), date(2026, 9, 21)
+
+# Single letters. `pt` is written 15,874 times and the words would cost 180 kB for nothing.
+PT = {"single_family": "s", "condos": "c", "townhomes": "t"}
+
+# Every href shares this prefix, verified on all 7,903 fetched so far. Stored once in the
+# payload and put back by the browser: 50 bytes x 15,874 is 790 kB of the same string.
+HREF_PREFIX = "https://www.realtor.com/realestateandhomes-detail/"
+
+# The hover panel shows six events and then "+N earlier", so six plus the count is all the
+# payload needs. Full histories were a quarter of the points payload.
+EV_SHOWN = 6
+
+# Events go out as [dayOffset, code, price] tuples rather than keyed objects. At 15,874 sales
+# the keys alone were a third of a megabyte, and only seven event names exist across 67,000
+# rows. The browser puts the words and the dates back.
+EV_CODE = {"Sold": 0, "Listed": 1, "Listing removed": 2, "Price Changed": 3,
+           "Listed for rent": 4, "Relisted": 5, "Price Changed for rent": 6}
+EV_NAME = [k for k, _ in sorted(EV_CODE.items(), key=lambda kv: kv[1])]
+EPOCH = date(2026, 1, 1)
 
 
 def day(v):
@@ -77,6 +100,11 @@ def extract():
         z = str(a.get("postal_code") or "")
         if z not in ZIP_TO_AREA:
             continue
+        # A handful of records come back whose only Sold event predates the requested window
+        # by decades -- 1983 and 1988 among the first 7,903 -- so the window is enforced here
+        # rather than trusted from the search filter.
+        if not (WINDOW_FROM <= sale["_d"] <= WINDOW_TO):
+            continue
         changes = sorted([e for e in run if e.get("event_name") == "Price Changed"
                           and e.get("price")], key=lambda e: e["_d"])
         listed = [e for e in run if e.get("event_name") in ("Listed", "Relisted")]
@@ -103,11 +131,14 @@ def extract():
             nocoord += 1
         pts.append({
             "i": len(pts),           # stable id, so a row can find its marker if it has one
-            "a": a.get("line"), "z": z, "ar": ZIP_TO_AREA[z], "rg": ZIP_TO_REGION[z],
-            "c": a.get("city"),
+            # No `ar`/`rg`: a sale's area and region follow from its ZIP, and the browser has
+            # that mapping already. Storing them per sale cost 43 bytes x 15,874.
+            "a": a.get("line"), "z": z, "c": a.get("city"),
+            "pt": PT.get((d or {}).get("type"), "?"),
             "lat": None if co.get("lat") is None else round(co["lat"], 5),
             "lon": None if co.get("lon") is None else round(co["lon"], 5),
-            "u": h.get("href"), "sp": sale["price"], "sd": str(sale["_d"]), "oa": ask,
+            "u": (h.get("href") or "").replace(HREF_PREFIX, ""),
+            "sp": sale["price"], "sd": (sale["_d"] - EPOCH).days, "oa": ask,
             "fa": final, "nc": len(changes), "dp": dp,
             "dc": rec["campaign_days"], "sq": d.get("sqft"), "bd": d.get("beds"),
             "ba": d.get("baths"), "yr": d.get("year_built"), "rl": rec["relisted"],
@@ -118,8 +149,11 @@ def extract():
             # The two halves of the discount, so a home list can show either.
             "cd": round(final / ask - 1, 6) if ask and final else None,
             "ng": round(sale["price"] / final - 1, 6) if final else None,
-            "ev": [{"d": str(e["_d"]), "e": e["event_name"], "p": e.get("price")}
-                   for e in sorted(run, key=lambda e: e["_d"], reverse=True)]})
+            "nev": len(run),
+            "ev": [[(e["_d"] - EPOCH).days, EV_CODE.get(e["event_name"], -1),
+                    e.get("price")]
+                   for e in sorted(run, key=lambda e: e["_d"],
+                                   reverse=True)[:EV_SHOWN]]})
     return pd.DataFrame(rows), pts, nocoord
 
 
@@ -200,6 +234,9 @@ def main():
     keep["ppsf"] = keep.sold_price / keep.sqft
     df = df.assign(vs_original=df.sold_price / df.original_ask - 1)
 
+    import collections
+    mix = collections.Counter(p["pt"] for p in pts)
+    print(f"property types: " + "  ".join(f"{k}={v:,}" for k, v in mix.most_common()))
     print(f"{len(df)} sales, {len(keep)} with a priced campaign opening, "
           f"{len(pts)} points ({nocoord} of them without coordinates, listed but not mapped)")
     print(f"  median vs original ask {keep.vs_original.median():+.2%}   "
@@ -228,7 +265,10 @@ def main():
         "zip": {r["zip"]: {"members": r["members"], "label": r["label"],
                            "area": r["area"], "region": r["region"]} for r in zips},
     }
-    payload.update({"meta": meta, "points": pts, "unplotted": {}})
+    payload.update({"meta": meta, "points": pts, "unplotted": {},
+                    "href_prefix": HREF_PREFIX, "ev_names": EV_NAME,
+                    "epoch": str(EPOCH),
+                    "window": [(WINDOW_FROM - EPOCH).days, (WINDOW_TO - EPOCH).days]})
     payload.pop("stats", None); payload.pop("zips", None); payload.pop("areas", None)
     json.dump(payload, open("/tmp/map_payload.json", "w"), separators=(",", ":"))
     json.dump({"regions": regions, "zips": zips, "areas": areas},
