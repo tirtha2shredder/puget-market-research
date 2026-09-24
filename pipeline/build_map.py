@@ -297,13 +297,13 @@ table.data tr:hover td{background:var(--plane)}
 <body><div class="viz-root">
 <h1>Closed home sales — King &amp; Snohomish</h1>
 <p class="sub">__NREG__ regions &middot; __NZIP__ ZIP codes &middot;
- __NAREA__ market areas &middot; houses, townhomes and condos &middot;
+ __NAREA__ market areas &middot; houses, townhomes and condos available &middot;
  every sale with a recorded asking price &middot; the ask is the opening of the campaign that
  produced the sale, so a home relisted after months off market is measured from its own
  campaign &middot; source: realtor.com</p>
 
 <div class="controls">
-  <div class="seg" role="group" aria-label="Metric">
+  <div class="seg" id="tabSeg" role="group" aria-label="Metric">
     <button data-v="vs_ask" aria-pressed="true">Sold vs&nbsp;ask</button>
     <button data-v="split" aria-pressed="false">Above / at / below</button>
     <button data-v="fast" aria-pressed="false">Above / at / below &mdash;
@@ -322,8 +322,8 @@ table.data tr:hover td{background:var(--plane)}
   <span class="pttl">Property type</span>
   <div class="seg tiny" id="ptSeg">
     <button data-pt="s" aria-pressed="true">Houses</button>
-    <button data-pt="t" aria-pressed="true">Townhomes</button>
-    <button data-pt="c" aria-pressed="true">Condos</button>
+    <button data-pt="t" aria-pressed="false">Townhomes</button>
+    <button data-pt="c" aria-pressed="false">Condos</button>
   </div>
   <span class="pttl">Sold within</span>
   <div class="seg tiny" id="winSeg">
@@ -484,7 +484,7 @@ const PRICE = {lo: null, hi: null};
 /* Houses, townhomes and condos; all three on by default. Multi-select because they are three
    markets a buyer may weigh together, unlike the window, where 1, 3 and 6 months are three
    answers to the same question and only one can be on screen. */
-const SCOPE = {types: new Set(["s", "t", "c"]), months: 1};
+const SCOPE = {types: new Set(["s"]), months: 1};
 const PT_LABEL = {s: "houses", t: "townhomes", c: "condos"};
 const WINDOW_DAYS = {1: 30, 3: 91, 6: 999};      /* 6 is the whole fetched span */
 const ZMETA = DATA.meta.zip;
@@ -1612,8 +1612,8 @@ function table(){
     <td>${fmt.median_ppsf(r.median_ppsf)}</td></tr>`).join("");
 }
 
-document.querySelectorAll(".seg button").forEach(b => b.onclick = () => {
-  document.querySelectorAll(".seg button")
+document.querySelectorAll("#tabSeg button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#tabSeg button")
     .forEach(x => x.setAttribute("aria-pressed", String(x === b)));
   view = VIEWS.find(v => v.id === b.dataset.v);
   metric = view.metric;
