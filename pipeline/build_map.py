@@ -1,7 +1,11 @@
 """Build the interactive ZIP choropleth as one self-contained HTML file."""
 import json
+import sys
 
-payload = json.load(open("/tmp/map_payload.json"))
+sys.path.insert(0, os.path.dirname(__file__))
+import paths
+
+payload = json.load(open(paths.PAYLOAD))
 
 
 def price_steps(pl):
@@ -842,10 +846,18 @@ const HOME_COL = {
            fmt:v => (v>0?"+":"") + v.toFixed(1) + "%", diverge:true},
   split:  {title:"Sold vs original ask", get:p => p.va == null ? null : p.va*100,
            fmt:v => (v>0?"+":"") + v.toFixed(1) + "%", diverge:true},
-  fast:   {title:"Days to pending", get:p => p.dp, fmt:v => v + " d", low:true},
+  fast:   {title:"Sold vs ask, pending within 10 days",
+           only:p => p.dp != null && p.dp < 10,
+           get:p => p.va == null ? null : p.va*100,
+           fmt:v => (v>0?"+":"") + v.toFixed(1) + "%", diverge:true},
   days:   {title:"Days to pending", get:p => p.dp, fmt:v => v + " d", low:true},
   cuts:   {title:"Price cuts taken", get:p => p.nc, fmt:v => String(v)},
-  depth:  {title:"How far the ask fell", get:p => p.cd == null ? null : p.cd*100,
+  /* Among the homes that cut, matching the tab. A home that never cut has cd == 0 by
+     construction, so without the filter the list padded out with zeroes that look like
+     measurements. */
+  depth:  {title:"How far the ask fell, among homes that cut",
+           only:p => p.nc > 0,
+           get:p => p.cd == null ? null : p.cd*100,
            fmt:v => v.toFixed(1) + "%", low:true},
   price:  {title:"Sold price", get:p => p.sp,
            fmt:v => "$" + Math.round(v).toLocaleString()},
@@ -855,13 +867,15 @@ const HOME_COL = {
 let byIndex = {};
 function homeList(){
   const col = HOME_COL[view.id], R = ramp();
-  const mine = activeSales().filter(p => p.z === openZipCode);
+  const all = activeSales().filter(p => p.z === openZipCode);
+  const mine = col.only ? all.filter(col.only) : all;
   byIndex = {}; mine.forEach(q => { byIndex[q.i] = q; });
   const vals = mine.map(col.get).filter(v => v != null);
   const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals), span = (hi - lo) || 1;
   const zeroPct = ((0 - lo) / span) * 100;
   document.getElementById("chartTitle").innerHTML =
-    `<span>${col.title} — ${mine.length} homes in ${openZipCode}</span>` +
+    `<span>${col.title} — ${mine.length}` +
+    `${col.only ? " of " + all.length : ""} homes in ${openZipCode}</span>` +
     '<span class="key">hover for detail \u00b7 click opens the listing on ' +
     'realtor.com</span>';
   const sorted = [...mine].sort((a, b) => {

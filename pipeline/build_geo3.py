@@ -10,12 +10,13 @@ a polygon.
 """
 
 import json
+import paths
 import sys
 
 from shapely.geometry import mapping, shape
 from shapely.ops import unary_union
 
-sys.path.insert(0, "/tmp")
+sys.path.insert(0, __import__("os").path.dirname(__file__))
 from areas import AREAS, REGIONS, check, check_regions  # noqa: E402
 
 REGION_TOL = 0.0003     # ~33 m: regions are only ever seen at full extent
@@ -44,8 +45,8 @@ def clean(geoms, tol):
 def main():
     check(); check_regions()
     wa = {f["properties"]["ZCTA5CE10"]: f
-          for f in json.load(open("/tmp/wa_zips.json"))["features"]}
-    payload = json.load(open("/tmp/map_payload.json"))
+          for f in json.load(open(paths.WA_ZIPS))["features"]}
+    payload = json.load(open(paths.PAYLOAD))
 
     regions = []
     for region, areas in REGIONS.items():
@@ -64,7 +65,7 @@ def main():
 
     payload["geo"] = {"type": "FeatureCollection", "features": regions}
     payload["zipgeo"] = {"type": "FeatureCollection", "features": zipgeo}
-    json.dump(payload, open("/tmp/map_payload.json", "w"), separators=(",", ":"))
+    json.dump(payload, open(paths.PAYLOAD, "w"), separators=(",", ":"))
     print(f"regions: {len(regions)} shapes, "
           f"{len(json.dumps(payload['geo']))/1024:.0f} kB")
     print(f"zips   : {len(zipgeo)} shapes, "

@@ -168,7 +168,7 @@ if __name__ == "__main__":
     df = pd.read_csv("/Users/tirthanu/workspaces/REMaxxing/closed_sales_30d.csv")
     cent = {f["properties"]["ZCTA5CE10"]:
             (float(f["properties"]["INTPTLAT10"]), float(f["properties"]["INTPTLON10"]))
-            for f in json.load(open("/tmp/wa_zips.json"))["features"]}
+            for f in json.load(open(paths.WA_ZIPS))["features"]}
     bad = verify(df)
     badrel = verify_relations(cent)
     print(f"{len(LABELS)} curated labels")

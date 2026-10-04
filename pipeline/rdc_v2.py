@@ -27,17 +27,22 @@ import statistics
 import sys
 import time
 
+import pathlib
+
+import paths
+
+_HERE = pathlib.Path(__file__).parent
 import requests
 
-sys.path.insert(0, "/tmp")
+sys.path.insert(0, __import__("os").path.dirname(__file__))
 from rdc_history import GQL_URL, HEADERS, SUGGEST  # noqa: E402
 
-ZIPS = "/tmp/zips_wide.json"
-INDEX = "/tmp/v2_index.pkl"        # phase 1: property_id -> search row
-DETAILS = "/tmp/v2_details.pkl"    # phase 2: property_id -> full record
-TELEMETRY = "/tmp/v2_rate.json"
+ZIPS = str(_HERE / "zips_wide.json")
+INDEX = paths.INDEX        # phase 1: property_id -> search row
+DETAILS = paths.DETAILS    # phase 2: property_id -> full record
+TELEMETRY = paths.p("rate.json")
 
-SINCE, UNTIL = "2026-03-22", "2026-09-21"
+SINCE, UNTIL = "2026-03-22", "2026-09-28"
 TYPES = '"single_family","condos","townhomes"'
 
 RETRY_STATUS = (403, 408, 429, 500, 502, 503, 504)
@@ -138,9 +143,10 @@ def phase1(session, interval):
     print(f"phase 1: {len(todo)} ZIPs to sweep, {len(done)} done, "
           f"{len(index)} homes indexed", flush=True)
     # Geo labels resolved by the previous run are reused rather than re-asked.
+    # Geo labels resolved by any previous run, so a re-index does not re-ask for 94 of them.
     cached = {}
-    if os.path.exists("/tmp/rdc_wide_index.pkl"):
-        old = pickle.load(open("/tmp/rdc_wide_index.pkl", "rb"))["done"]
+    if os.path.exists(paths.INDEX):
+        old = pickle.load(open(paths.INDEX, "rb")).get("done", {})
         cached = {z: v["geo"] for z, v in old.items() if v.get("geo")}
     for n, z in enumerate(todo, 1):
         try:

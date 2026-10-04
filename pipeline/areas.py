@@ -19,6 +19,9 @@ Canal splits north Seattle from Queen Anne, the Duwamish splits West Seattle fro
 """
 
 import json
+import pathlib
+
+_HERE = pathlib.Path(__file__).parent
 
 AREAS = {
     # ---- Snohomish
@@ -78,7 +81,7 @@ ZIP_TO_AREA = {z: a for a, zs in AREAS.items() for z in zs}
 
 def check():
     """Every swept ZIP is in exactly one area, and no area names a ZIP we did not sweep."""
-    swept = set(json.load(open("/tmp/zips_wide.json")))
+    swept = set(json.load(open(str(_HERE / "zips_wide.json"))))
     mapped = [z for zs in AREAS.values() for z in zs]
     assert len(mapped) == len(set(mapped)), \
         f"ZIP in two areas: {sorted({z for z in mapped if mapped.count(z) > 1})}"

@@ -18,23 +18,24 @@ Two things this adds over the single-level version:
 """
 
 import json
+import paths
 import pickle
 import sys
 from datetime import date, datetime
 
 import pandas as pd
 
-sys.path.insert(0, "/tmp")
+sys.path.insert(0, __import__("os").path.dirname(__file__))
 from areas import (AREA_TO_REGION, ZIP_TO_AREA, ZIP_TO_REGION, check,  # noqa: E402
                    check_regions)
 from campaign import campaign  # noqa: E402
 from ziplabels import label_for  # noqa: E402
 
-DETAILS = "/tmp/v2_details.pkl"
+DETAILS = paths.DETAILS
 
 # Six months of all three residential types. One and three months are cut from this in the
 # browser, so the window selector costs no extra fetching.
-WINDOW_FROM, WINDOW_TO = date(2026, 3, 22), date(2026, 9, 21)
+WINDOW_FROM, WINDOW_TO = date(2026, 3, 22), date(2026, 9, 28)
 
 # Single letters. `pt` is written 15,874 times and the words would cost 180 kB for nothing.
 PT = {"single_family": "s", "condos": "c", "townhomes": "t"}
@@ -257,7 +258,7 @@ def main():
     for r in areas:
         r["region"] = AREA_TO_REGION[r["zip"]]
 
-    payload = json.load(open("/tmp/map_payload.json"))
+    payload = json.load(open(paths.PAYLOAD))
     meta = {
         "region": {r["zip"]: {"members": r["members"]} for r in regions},
         "area": {r["zip"]: {"members": r["members"], "region": r["region"]}
@@ -270,9 +271,9 @@ def main():
                     "epoch": str(EPOCH),
                     "window": [(WINDOW_FROM - EPOCH).days, (WINDOW_TO - EPOCH).days]})
     payload.pop("stats", None); payload.pop("zips", None); payload.pop("areas", None)
-    json.dump(payload, open("/tmp/map_payload.json", "w"), separators=(",", ":"))
+    json.dump(payload, open(paths.PAYLOAD, "w"), separators=(",", ":"))
     json.dump({"regions": regions, "zips": zips, "areas": areas},
-              open("/tmp/levels.json", "w"), indent=1)
+              open(paths.LEVELS, "w"), indent=1)
     keep.to_csv("closed_sales_30d.csv", index=False)
 
     print(f"\n{'region':<24}{'n':>5}{'vs ask':>9}{'cut':>8}{'at table':>10}"

@@ -9,3 +9,6 @@ water_*.zip
 water_raw.json
 __pycache__/
 .venv/
+
+# The cache root is ~/.cache/puget-market-research (see pipeline/paths.py), deliberately
+# outside the repo and outside /tmp. Nothing from it belongs here.
